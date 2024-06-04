@@ -8,9 +8,9 @@ import (
 
 func NewCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
-		Use:   "github.com/volvinbur1/call-of-telegram",
-		Short: "github.com/volvinbur1/call-of-telegram broadcasts messages in telegram",
-		Long:  "github.com/volvinbur1/call-of-telegram is a cli tool which can send provided message to users of specified community (group/channel) in telegram.",
+		Use:   "call-of-telegram",
+		Short: "call-of-telegram broadcasts messages in telegram",
+		Long:  "call-of-telegram is a cli tool which can send provided message to users of specified community (group/channel) in telegram.",
 		Run: func(cmd *cobra.Command, args []string) {
 			if err := cmd.Help(); err != nil {
 				panic("CLI RootCmd help failed: " + err.Error())
