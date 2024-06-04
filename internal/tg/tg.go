@@ -88,19 +88,21 @@ func (a *App) SendMessageToGroupUsers(groupName string, message []byte) error {
 		return fmt.Errorf("get chat id of '%s' failed: %s", groupName, err)
 	}
 
-	fmt.Printf("ChatId of group '%s' found: %d(%s)\n", groupName, chatInfo.id, chatInfo.typ)
+	fmt.Printf("ChatId of group `@%s` found: %d(%s)\n", groupName, chatInfo.id, chatInfo.typ)
 
 	chatMembersIds, err := a.getChatMembersIds(chatInfo)
 	if err != nil {
 		return fmt.Errorf("chat members ids get failed for '%s(%d)' failed: %s", groupName, chatInfo.id, err)
 	}
 
-	fmt.Printf("Total count of users in chat '%s(%d)': %d", groupName, chatInfo.id, len(chatMembersIds))
+	fmt.Printf("Total count of users in chat `@%s`(%d): %d\n", groupName, chatInfo.id, len(chatMembersIds))
 
 	for _, userId := range chatMembersIds {
 		err = a.sendMessageToUser(userId, message)
 		if err != nil {
 			fmt.Println("target message send failed:", err)
+		} else {
+			fmt.Println("Message send to", userId)
 		}
 		time.Sleep(5 * time.Second)
 	}
@@ -108,28 +110,14 @@ func (a *App) SendMessageToGroupUsers(groupName string, message []byte) error {
 }
 
 func (a *App) getChatId(groupName string) (ChatInfo, error) {
-	searchResult, err := a.tgClient.SearchPublicChats(&tglib.SearchPublicChatsRequest{
-		Query: groupName,
+	chat, err := a.tgClient.SearchPublicChat(&tglib.SearchPublicChatRequest{
+		Username: groupName,
 	})
 	if err != nil {
-		return ChatInfo{}, fmt.Errorf("search for public chat by query '%s' failed: %s", groupName, err.Error())
+		return ChatInfo{}, fmt.Errorf("search public chat by query '%s' failed: %s", groupName, err.Error())
 	}
 
-	for _, chatId := range searchResult.ChatIds {
-		chat, err := a.tgClient.GetChat(&tglib.GetChatRequest{ChatId: chatId})
-		if err != nil {
-			fmt.Printf("getting chat %d failed error: %s\n", chatId, err)
-			continue
-		}
-
-		if chat.Title != groupName {
-			continue
-		}
-
-		return chatIdByType(chat)
-	}
-
-	return ChatInfo{}, fmt.Errorf("no chat`s exactly matching to query '%s'", groupName)
+	return chatIdByType(chat)
 }
 
 func chatIdByType(chat *tglib.Chat) (ChatInfo, error) {
