@@ -28,10 +28,7 @@ func Execute(cmd *cobra.Command, _ []string) {
 		panic(fmt.Sprintf("group-name should be set: %s", err))
 	}
 
-	msgFile, err := cmd.Flags().GetString("msg-file")
-	if err != nil {
-		panic(fmt.Sprintf("msg-file should be set: %s", err))
-	}
+	message := getTargetMessage(cmd)
 
 	apiIdStr := os.Getenv("API_ID")
 	apiId, err := strconv.ParseInt(apiIdStr, 10, 32)
@@ -44,8 +41,22 @@ func Execute(cmd *cobra.Command, _ []string) {
 		panic(fmt.Sprintf("tg App creation failed: %s", err))
 	}
 
-	err = tgApp.SendMessageToGroupUsers(groupName, msgFile)
+	err = tgApp.SendMessageToGroupUsers(groupName, message)
 	if err != nil {
 		panic(fmt.Sprintf("SendMessageToGroupUsers failed: %s", err))
 	}
+}
+
+func getTargetMessage(cmd *cobra.Command) []byte {
+	msgFile, err := cmd.Flags().GetString("msg-file")
+	if err != nil {
+		panic(fmt.Sprintf("msg-file should be set: %s", err))
+	}
+
+	data, err := os.ReadFile(msgFile)
+	if err != nil {
+		panic(fmt.Sprintf("read file %s failed: %s", msgFile, err))
+	}
+
+	return data
 }

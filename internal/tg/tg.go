@@ -82,7 +82,7 @@ func (a *App) createAuthorizer(apiId int32, apiHash string) tglib.AuthorizationS
 	return authorizer
 }
 
-func (a *App) SendMessageToGroupUsers(groupName string, message string) error {
+func (a *App) SendMessageToGroupUsers(groupName string, message []byte) error {
 	chatInfo, err := a.getChatId(groupName)
 	if err != nil {
 		return fmt.Errorf("get chat id of '%s' failed: %s", groupName, err)
@@ -211,7 +211,7 @@ func (a *App) getBasicGroupMembers(chatId int64) ([]*tglib.ChatMember, error) {
 	return basicChatInfo.Members, nil
 }
 
-func (a *App) sendMessageToUser(userId int64, message string) error {
+func (a *App) sendMessageToUser(userId int64, message []byte) error {
 	newChat, err := a.tgClient.CreatePrivateChat(&tglib.CreatePrivateChatRequest{
 		UserId: userId,
 		Force:  true,
@@ -223,7 +223,7 @@ func (a *App) sendMessageToUser(userId int64, message string) error {
 	_, err = a.tgClient.SendMessage(&tglib.SendMessageRequest{
 		ChatId: newChat.Id,
 		InputMessageContent: &tglib.InputMessageText{
-			Text: &tglib.FormattedText{Text: message},
+			Text: &tglib.FormattedText{Text: string(message)},
 		},
 	})
 	if err != nil {
