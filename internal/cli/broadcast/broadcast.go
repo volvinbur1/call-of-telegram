@@ -16,7 +16,7 @@ func NewCmd() *cobra.Command {
 		Run:   Execute,
 	}
 
-	broadcastCmd.Flags().String("group-name", "", "Name of the group to broadcast")
+	broadcastCmd.Flags().String("group-name", "", "oup to broadcast")
 	broadcastCmd.Flags().String("msg-file", "", "Path to file with target message to broadcast")
 
 	return broadcastCmd
