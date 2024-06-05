@@ -1,6 +1,7 @@
 package broadcast
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/volvinbur1/call-of-telegram/internal/tg"
@@ -16,17 +17,16 @@ func NewCmd() *cobra.Command {
 		Run:   Execute,
 	}
 
-	broadcastCmd.Flags().String("group-name", "", "oup to broadcast")
+	broadcastCmd.Flags().String("group-list", "", "path to file with groups to broadcast")
+	broadcastCmd.Flags().String("group-name", "", "group to broadcast")
 	broadcastCmd.Flags().String("msg-file", "", "Path to file with target message to broadcast")
 
 	return broadcastCmd
 }
 
 func Execute(cmd *cobra.Command, _ []string) {
-	groupName, err := cmd.Flags().GetString("group-name")
-	if err != nil {
-		panic(fmt.Sprintf("group-name should be set: %s", err))
-	}
+	groupListPath, _ := cmd.Flags().GetString("group-list")
+	groupName, _ := cmd.Flags().GetString("group-name")
 
 	message := getTargetMessage(cmd)
 
@@ -41,9 +41,18 @@ func Execute(cmd *cobra.Command, _ []string) {
 		panic(fmt.Sprintf("tg App creation failed: %s", err))
 	}
 
-	err = tgApp.SendMessageToGroupUsers(groupName, message)
-	if err != nil {
-		panic(fmt.Sprintf("SendMessageToGroupUsers failed: %s", err))
+	if groupName != "" {
+		err = tgApp.SendMessageToGroupUsers(groupName, message)
+		if err != nil {
+			panic(fmt.Sprintf("SendMessageToGroupUsers failed: %s", err))
+		}
+	} else if groupListPath != "" {
+		err = readGroupList(groupListPath, tgApp, message)
+		if err != nil {
+			panic(fmt.Sprintf("ReadGroupList failed: %s", err))
+		}
+	} else {
+		panic(fmt.Sprintf("either group-list or group-name should be set"))
 	}
 }
 
@@ -59,4 +68,28 @@ func getTargetMessage(cmd *cobra.Command) []byte {
 	}
 
 	return data
+}
+
+func readGroupList(groupListFile string, tgApp *tg.App, message []byte) error {
+	file, err := os.Open(groupListFile)
+	if err != nil {
+		return fmt.Errorf("open file %s failed: %s", groupListFile, err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		groupName := scanner.Text()
+		fmt.Println("Read group:", groupName, "PROCESSING")
+		err = tgApp.SendMessageToGroupUsers(groupName, message)
+		if err != nil {
+			fmt.Println("SendMessageToGroupUsers failed:", err)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("scan file %s failed: %s", groupListFile, err)
+	}
+
+	return nil
 }
