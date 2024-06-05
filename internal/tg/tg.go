@@ -167,26 +167,19 @@ func (a *App) getChatMembersIds(chatInfo ChatInfo) ([]int64, error) {
 }
 
 func (a *App) getSupergroupMembers(chatId int64) ([]*tglib.ChatMember, error) {
-	offset := int32(0)
 	var chatMembers []*tglib.ChatMember
-	for {
-		members, err := a.tgClient.GetSupergroupMembers(&tglib.GetSupergroupMembersRequest{
-			SupergroupId: chatId,
-			Offset:       offset,
-			Limit:        200,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("supergroup members get failed: %s", err)
-		}
-
-		chatMembers = append(chatMembers, members.Members...)
-
-		if len(members.Members) == 200 {
-			offset += 200
-		} else {
-			return chatMembers, nil
-		}
+	members, err := a.tgClient.GetSupergroupMembers(&tglib.GetSupergroupMembersRequest{
+		Filter:       &tglib.SupergroupMembersFilterMention{},
+		SupergroupId: chatId,
+		Limit:        200,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("supergroup members get failed: %s", err)
 	}
+
+	chatMembers = append(chatMembers, members.Members...)
+
+	return chatMembers, nil
 }
 
 func (a *App) getBasicGroupMembers(chatId int64) ([]*tglib.ChatMember, error) {
