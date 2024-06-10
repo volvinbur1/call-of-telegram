@@ -156,14 +156,27 @@ func (a *App) getChatMembersIds(chatInfo ChatInfo) ([]int64, error) {
 		if !isOkay {
 			continue
 		}
-
 		if user.UserId == a.meUser.Id {
+			continue
+		}
+		if !a.isUserRegular(user.UserId) {
 			continue
 		}
 
 		membersId = append(membersId, user.UserId)
 	}
 	return membersId, nil
+}
+
+func (a *App) isUserRegular(userId int64) bool {
+	userInfo, err := a.tgClient.GetUser(&tglib.GetUserRequest{UserId: userId})
+	if err != nil {
+		fmt.Printf("get user info by id %d failed: %s\n", userId, err)
+		return false
+	}
+
+	_, isOkay := userInfo.Type.(*tglib.UserTypeRegular)
+	return isOkay
 }
 
 func (a *App) getSupergroupMembers(chatId int64) ([]*tglib.ChatMember, error) {
