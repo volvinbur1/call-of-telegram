@@ -1,6 +1,7 @@
 package tg
 
 import (
+	"errors"
 	"fmt"
 	tglib "github.com/zelenin/go-tdlib/client"
 	"path/filepath"
@@ -40,7 +41,7 @@ func NewApp(apiId int32, apiHash string) (*App, error) {
 	authorizer := app.createAuthorizer(apiId, apiHash)
 
 	_, err := tglib.SetLogVerbosityLevel(&tglib.SetLogVerbosityLevelRequest{
-		NewVerbosityLevel: 1,
+		NewVerbosityLevel: 2,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("SetLogVerbosityLevel failed: %s", err)
@@ -55,9 +56,60 @@ func NewApp(apiId int32, apiHash string) (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("GetMe failed: %s", err)
 	}
-
 	return app, nil
+	//messages, err := app.tgClient.GetChatHistory(&tglib.GetChatHistoryRequest{
+	//	ChatId:    7191897364,
+	//	Limit:     100,
+	//	OnlyLocal: false,
+	//})
+	//if err != nil {
+	//	return nil, fmt.Errorf("GetChatHistory failed: %s", err)
+	//}
+	//for _, msg := range messages.Messages {
+	//	fmt.Println(msg.Id, msg.Content.(*tglib.MessageText).Text.Text)
+	//	failedMsg, isOkay := msg.SendingState.(*tglib.MessageSendingStateFailed)
+	//	if isOkay {
+	//		fmt.Println("Error message sending failed:", failedMsg.Error)
+	//	}
+	//}
+	//user, err := app.tgClient.GetUser(&tglib.GetUserRequest{
+	//	UserId: 7191897364,
+	//})
+	//if err != nil {
+	//	return nil, fmt.Errorf("GetUser failed: %s", err)
+	//}
+	//fmt.Println(user.FirstName, user.Usernames.ActiveUsernames)
+	//app.tgClient.GetListener()
+	//newMsg, err := app.tgClient.SendMessage(&tglib.SendMessageRequest{
+	//	ChatId: 1273073098,
+	//	InputMessageContent: &tglib.InputMessageText{
+	//		Text: &tglib.FormattedText{Text: "Hello" + user.FirstName},
+	//	},
+	//})
+	//if err != nil {
+	//	return nil, fmt.Errorf("SendMessage failed: %s", err)
+	//}
+	//fmt.Println(newMsg.SendingState)
+	//return nil, app.getAllChats()
 }
+
+//func (a *App) getAllChats() error {
+//	chats, err := a.tgClient.GetChats(&tglib.GetChatsRequest{ChatList: &tglib.ChatListMain{},
+//		Limit: 40})
+//	if err != nil {
+//		return fmt.Errorf("GetChats failed: %s", err)
+//	}
+//
+//	for _, chat := range chats.ChatIds {
+//		chatInfo, err := a.tgClient.GetChat(&tglib.GetChatRequest{ChatId: chat})
+//		if err != nil {
+//			return fmt.Errorf("GetChats failed: %s", err)
+//		}
+//		fmt.Println("Chat:", chatInfo.Title)
+//	}
+//
+//	return nil
+//}
 
 func (a *App) createAuthorizer(apiId int32, apiHash string) tglib.AuthorizationStateHandler {
 	authorizer := tglib.ClientAuthorizer()
@@ -100,11 +152,10 @@ func (a *App) SendMessageToGroupUsers(groupName string, message []byte) error {
 	for _, userId := range chatMembersIds {
 		err = a.sendMessageToUser(userId, message)
 		if err != nil {
-			fmt.Println("target message send failed:", err)
-		} else {
-			fmt.Println("Message send to", userId)
+			return errors.New("target message send failed: " + err.Error())
 		}
-		time.Sleep(5 * time.Second)
+		fmt.Println("Message send to", userId)
+		time.Sleep(time.Minute)
 	}
 	return nil
 }
@@ -176,6 +227,18 @@ func (a *App) isUserRegular(userId int64) bool {
 	}
 
 	_, isOkay := userInfo.Type.(*tglib.UserTypeRegular)
+	if !isOkay {
+		return false
+	}
+
+	canSendResult, err := a.tgClient.CanSendMessageToUser(&tglib.CanSendMessageToUserRequest{
+		UserId:    userId,
+		OnlyLocal: false,
+	})
+	if err != nil {
+		fmt.Printf("CanSendMessageToUser %d failed: %s\n", userId, err)
+	}
+	_, isOkay = canSendResult.(*tglib.CanSendMessageToUserResultOk)
 	return isOkay
 }
 
@@ -214,15 +277,60 @@ func (a *App) sendMessageToUser(userId int64, message []byte) error {
 		return fmt.Errorf("creation of private chat failed: %s", err)
 	}
 
-	_, err = a.tgClient.SendMessage(&tglib.SendMessageRequest{
+	msg, err := a.tgClient.SendMessage(&tglib.SendMessageRequest{
 		ChatId: newChat.Id,
 		InputMessageContent: &tglib.InputMessageText{
 			Text: &tglib.FormattedText{Text: string(message)},
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("send message to user %d in chat %d failed: %s", userId, newChat.Id, err)
+		return fmt.Errorf("send message to user %d failed: %s", userId, err)
 	}
 
+	return a.handleMessageState(msg)
+}
+
+func (a *App) handleMessageState(message *tglib.Message) error {
+	switch message.SendingState.MessageSendingStateType() {
+	case tglib.TypeMessageSendingStateFailed:
+		failState, isOkay := message.SendingState.(*tglib.MessageSendingStateFailed)
+		if !isOkay {
+			return fmt.Errorf("messageSendingStateFailed state is not convertible to *tglib.MessageSendingStateFailed")
+		}
+		return fmt.Errorf("message %d to user %d in FAILED state. ErrCode: %d ErrMessage %s", message.Id, message.ChatId, failState.Error.Code, failState.Error.Message)
+	case tglib.TypeMessageSendingStatePending:
+		fmt.Printf("message %d to user %d in PEDNING state\n", message.Id, message.ChatId)
+		return a.listenToNewEventsAfterSendingMessage()
+	default:
+		return fmt.Errorf("message %d to user %d has unsupported state: %s\n", message.Id, message.ChatId, message.SendingState.MessageSendingStateType())
+	}
+}
+
+func (a *App) listenToNewEventsAfterSendingMessage() error {
+	for update := range a.tgClient.GetListener().Updates {
+		fmt.Println("New EVENT:", update.GetType())
+		switch update.GetType() {
+		case tglib.TypeUpdateMessageSendFailed:
+			upd, isOkay := update.(*tglib.UpdateMessageSendFailed)
+			if !isOkay {
+				return fmt.Errorf("updateMessageSendFailed event is not convertible to *tglib.UpdateMessageSendFailed")
+			}
+			return fmt.Errorf("message %d sent to user %d failed. ErrCode: %d ErrMsg: %s", upd.OldMessageId, upd.Message.ChatId, upd.Error.Code, upd.Error.Message)
+		case tglib.TypeUpdateMessageSendSucceeded:
+			upd, isOkay := update.(*tglib.UpdateMessageSendSucceeded)
+			if !isOkay {
+				return fmt.Errorf("updateMessageSendSucceeded event is not convertible to *tglib.UpdateMessageSendSucceeded")
+			}
+			fmt.Printf("Message %d sent to user %d SUCCESSFULLY\n", upd.Message.Id, upd.Message.ChatId)
+			return nil
+		case tglib.TypeUpdateDeleteMessages:
+			upd, isOkay := update.(*tglib.UpdateDeleteMessages)
+			if !isOkay {
+				return fmt.Errorf("updateDeleteMessages event is not convertible to *tglib.UpdateDeleteMessages")
+			}
+			fmt.Printf("Messages %v from chat %d were deleted\n", upd.MessageIds, upd.ChatId)
+			return nil
+		}
+	}
 	return nil
 }

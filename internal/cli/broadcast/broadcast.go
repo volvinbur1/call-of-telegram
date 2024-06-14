@@ -2,6 +2,7 @@ package broadcast
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"github.com/spf13/cobra"
 	"github.com/volvinbur1/call-of-telegram/internal/tg"
@@ -83,7 +84,7 @@ func readGroupList(groupListFile string, tgApp *tg.App, message []byte) error {
 		fmt.Println("Read group:", groupName, "PROCESSING")
 		err = tgApp.SendMessageToGroupUsers(groupName, message)
 		if err != nil {
-			fmt.Println("SendMessageToGroupUsers failed:", err)
+			return errors.New("SendMessageToGroupUsers failed:" + err.Error())
 		}
 	}
 
