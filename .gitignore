@@ -21,6 +21,7 @@
 # Go workspace file
 go.work
 
+.idea
 .env
 bin/
 go.sum
